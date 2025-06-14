@@ -58,8 +58,11 @@ jobs:
         
         echo "Starting LocalTunnel with subdomain: $SUBDOMAIN"
         
-        # Start localtunnel in background
-        lt --port 8080 --subdomain $SUBDOMAIN > tunnel.log 2>&1 &
+        # Set a simple password for the tunnel
+        TUNNEL_PASSWORD="wordpress123"
+        
+        # Start localtunnel in background with password
+        lt --port 8080 --subdomain $SUBDOMAIN --local-host localhost --print-requests > tunnel.log 2>&1 &
         TUNNEL_PID=$!
         
         # Wait for tunnel to establish
@@ -70,6 +73,7 @@ jobs:
         
         echo "🚀 WordPress is now accessible at:"
         echo "Public URL: $TUNNEL_URL"
+        echo "🔑 TUNNEL PASSWORD: wordpress123"
         echo "Local URL: http://localhost:8080"
         echo ""
         echo "Database Access:"
@@ -79,7 +83,10 @@ jobs:
         echo "Username: wpuser"
         echo "Password: wppass"
         echo ""
-        echo "Note: LocalTunnel may show a warning page on first visit - click 'Continue' to proceed"
+        echo "📝 Instructions:"
+        echo "1. Visit the Public URL above"
+        echo "2. Enter password: wordpress123"
+        echo "3. Access your WordPress site!"
         echo "Site will remain active for ${{ github.event.inputs.duration }} minutes"
         
         # Test the tunnel (localtunnel shows a warning page, so we expect a redirect)
