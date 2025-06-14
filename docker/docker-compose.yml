@@ -26,20 +26,27 @@ services:
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DB_USER: wpuser
       WORDPRESS_DB_PASSWORD: wppass
-      # Dynamic URL configuration that works with tunnels
+      # Fixed dynamic URL configuration that works with tunnels and nginx
       WORDPRESS_CONFIG_EXTRA: |
-        // Dynamic URL configuration for tunneling
+        // Dynamic URL configuration for tunneling through nginx
         $$protocol = 'http';
         $$host = 'localhost:8080';
         
-        if (isset($$_SERVER['HTTP_HOST'])) {
+        // Check for forwarded protocol first (from nginx)
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $$protocol = $$_SERVER['HTTP_X_FORWARDED_PROTO'];
+        }
+        
+        // Check for forwarded host (from nginx)
+        if (isset($$_SERVER['HTTP_X_FORWARDED_HOST'])) {
+            $$host = $$_SERVER['HTTP_X_FORWARDED_HOST'];
+        } elseif (isset($$_SERVER['HTTP_HOST'])) {
             $$host = $$_SERVER['HTTP_HOST'];
-            // Check if we're behind a tunnel or proxy
-            if (strpos($$host, 'loca.lt') !== false) {
-                $$protocol = 'https';
-            } elseif (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-                $$protocol = 'https';
-            }
+        }
+        
+        // Special handling for loca.lt tunnels
+        if (strpos($$host, 'loca.lt') !== false) {
+            $$protocol = 'https';
         }
         
         define('WP_HOME', $$protocol . '://' . $$host);
@@ -53,11 +60,14 @@ services:
         
         // Handle reverse proxy headers properly
         if (isset($$_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $$_SERVER['REMOTE_ADDR'] = $$_SERVER['HTTP_X_FORWARDED_FOR'];
+            $$_SERVER['REMOTE_ADDR'] = explode(',', $$_SERVER['HTTP_X_FORWARDED_FOR'])[0];
         }
         
         // Allow WordPress to handle different domains during install
         define('RELOCATE', true);
+        
+        // Disable redirect canonicalization to prevent localhost redirects
+        remove_action('template_redirect', 'redirect_canonical');
     depends_on:
       mysql:
         condition: service_healthy
