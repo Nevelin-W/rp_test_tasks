@@ -1,6 +1,6 @@
 
 # docker/Dockerfile
-FROM php:8.3-apache-alpine3.19
+FROM php:8.3-apache
 
 # Install security updates and required packages
 RUN apk update && \
