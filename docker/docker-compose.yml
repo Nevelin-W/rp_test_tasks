@@ -2,15 +2,18 @@ version: '3.8'
 
 services:
   wordpress:
-    build: 
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: wordpress:6.5-apache
     ports:
       - "8080:80"
-    volumes:
-      - ../wordpress/wordpress.conf:/etc/apache2/sites-available/000-default.conf:ro
+    environment:
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppass
     depends_on:
       - mysql
+    volumes:
+      - ../wordpress/wordpress.conf:/etc/apache2/sites-available/000-default.conf:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s
