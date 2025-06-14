@@ -29,14 +29,14 @@ services:
       # Dynamic URL configuration for tunneling
       WORDPRESS_CONFIG_EXTRA: |
         // Dynamic URL configuration for tunneling
-        if (isset($_SERVER['HTTP_HOST'])) {
-            $host = $_SERVER['HTTP_HOST'];
-            if (strpos($host, 'loca.lt') !== false) {
-                define('WP_HOME', 'https://' . $host);
-                define('WP_SITEURL', 'https://' . $host);
-            } elseif (strpos($host, 'localhost') !== false) {
-                define('WP_HOME', 'http://' . $host);
-                define('WP_SITEURL', 'http://' . $host);
+        if (isset($$_SERVER['HTTP_HOST'])) {
+            $$host = $$_SERVER['HTTP_HOST'];
+            if (strpos($$host, 'loca.lt') !== false) {
+                define('WP_HOME', 'https://' . $$host);
+                define('WP_SITEURL', 'https://' . $$host);
+            } elseif (strpos($$host, 'localhost') !== false) {
+                define('WP_HOME', 'http://' . $$host);
+                define('WP_SITEURL', 'http://' . $$host);
             }
         }
         
@@ -47,13 +47,13 @@ services:
         }
         
         // Force HTTPS for tunnel URLs
-        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-            $_SERVER['HTTPS'] = 'on';
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            $$_SERVER['HTTPS'] = 'on';
         }
         
         // Handle reverse proxy headers
-        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        if (isset($$_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $$_SERVER['REMOTE_ADDR'] = $$_SERVER['HTTP_X_FORWARDED_FOR'];
         }
     depends_on:
       mysql:
