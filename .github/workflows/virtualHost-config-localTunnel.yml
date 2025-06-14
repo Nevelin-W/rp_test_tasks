@@ -83,47 +83,7 @@ jobs:
         # Get the tunnel URL
         TUNNEL_URL="https://${SUBDOMAIN}.loca.lt"
         
-        # Update WordPress configuration with tunnel URL
-        cd docker
-        echo "Updating WordPress configuration for tunnel URL..."
-        
-        # Wait a bit more for WordPress to be fully ready
-        sleep 10
-        
-        # Use wp-cli to update WordPress URLs (alternative method)
-        docker-compose exec -T wordpress bash -c "
-          # Wait for WordPress to be fully installed
-          while [ ! -f /var/www/html/wp-config.php ]; do
-            echo 'Waiting for WordPress installation...'
-            sleep 2
-          done
-          
-          # Install wp-cli if not present
-          if ! command -v wp &> /dev/null; then
-            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-            chmod +x wp-cli.phar
-            mv wp-cli.phar /usr/local/bin/wp
-          fi
-          
-          # Update WordPress URLs using wp-cli
-          cd /var/www/html
-          
-          # Wait for database to be ready and WordPress to be installed
-          for i in {1..30}; do
-            if wp core is-installed --allow-root 2>/dev/null; then
-              echo 'WordPress is installed, updating URLs...'
-              wp option update home '${TUNNEL_URL}' --allow-root
-              wp option update siteurl '${TUNNEL_URL}' --allow-root
-              echo 'WordPress URLs updated successfully'
-              break
-            else
-              echo 'WordPress not yet installed, waiting... (\$i/30)'
-              sleep 2
-            fi
-          done
-        " || echo "WordPress URL update failed - will rely on dynamic configuration"
-        
-        cd ..
+        echo "WordPress configured with dynamic URL detection for tunnel: $TUNNEL_URL"
         
         echo "🚀 WordPress is now accessible at:"
         echo "Public URL: $TUNNEL_URL"
