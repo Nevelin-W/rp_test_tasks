@@ -1,0 +1,35 @@
+name: Test Apache WordPress Configuration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-apache-config:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build and test
+      run: |
+        cd docker
+        docker-compose up -d --build
+        
+        # Wait for services
+        sleep 30
+        
+        # Test Apache configuration
+        docker-compose exec -T wordpress apache2ctl configtest
+        
+        # Test if site is accessible
+        curl -f http://localhost:8080 || exit 1
+        
+        # Test that sensitive files are blocked
+        curl -f http://localhost:8080/wp-config.php && exit 1 || echo "wp-config.php properly blocked"
+        
+        # Show logs for debugging
+        docker-compose logs
+        
+        # Cleanup
+        docker-compose down
