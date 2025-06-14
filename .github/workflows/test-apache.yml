@@ -23,13 +23,14 @@ jobs:
         sudo chmod +x /usr/local/bin/docker-compose
         docker-compose --version
     
-    - name: Setup ngrok
-      uses: ngrok/ngrok-action@v1
-      with:
-        authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
-        tunnel: http 8080
-        args: --log stdout
-      id: ngrok
+    - name: Install ngrok
+      run: |
+        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+        sudo apt update && sudo apt install ngrok
+        
+        # Configure ngrok with auth token
+        ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
     
     - name: Build and start WordPress
       run: |
@@ -43,16 +44,23 @@ jobs:
         # Test Apache configuration
         docker-compose exec -T wordpress apache2ctl configtest
         
-        # Verify local access
-        curl -f http://localhost:8080 || echo "Local access failed"
-        
         # Show container status
         docker-compose ps
     
-    - name: Display Access Information
+    - name: Start ngrok tunnel
       run: |
+        # Start ngrok in background
+        ngrok http 8080 --log stdout > ngrok.log 2>&1 &
+        NGROK_PID=$!
+        
+        # Wait for ngrok to start and get the URL
+        sleep 10
+        
+        # Extract the public URL
+        NGROK_URL=$(curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+        
         echo "🚀 WordPress is now accessible at:"
-        echo "Public URL: ${{ steps.ngrok.outputs.tunnel-url }}"
+        echo "Public URL: $NGROK_URL"
         echo "Local URL: http://localhost:8080"
         echo ""
         echo "Database Access:"
@@ -63,27 +71,28 @@ jobs:
         echo "Password: wppass"
         echo ""
         echo "Site will remain active for ${{ github.event.inputs.duration }} minutes"
-    
-    - name: Keep site running
-      run: |
-        echo "Site is now live and accessible via the ngrok URL above"
-        echo "Keeping the site running for ${{ github.event.inputs.duration }} minutes..."
         
-        # Convert minutes to seconds
+        # Test the public URL
+        sleep 5
+        curl -f "$NGROK_URL" || echo "Public URL not yet accessible"
+        
+        # Keep the tunnel running
+        echo "Keeping the site running for ${{ github.event.inputs.duration }} minutes..."
         DURATION_SECONDS=$(((${{ github.event.inputs.duration }} * 60)))
         
         # Show logs in background
+        cd docker
         docker-compose logs -f &
         LOGS_PID=$!
         
         # Wait for specified duration
         sleep $DURATION_SECONDS
         
-        # Stop background logs
+        # Stop background processes
         kill $LOGS_PID 2>/dev/null || true
+        kill $NGROK_PID 2>/dev/null || true
         
         echo "Time limit reached. Shutting down..."
-      working-directory: docker
     
     - name: Show final logs
       if: always()
@@ -93,6 +102,8 @@ jobs:
         docker-compose ps
         echo "=== Recent Logs ==="
         docker-compose logs --tail=20
+        echo "=== Ngrok Logs ==="
+        cat ngrok.log || echo "No ngrok logs found"
     
     - name: Cleanup
       if: always()
@@ -100,3 +111,4 @@ jobs:
         cd docker
         docker-compose down -v
         docker system prune -f
+        pkill ngrok || true
