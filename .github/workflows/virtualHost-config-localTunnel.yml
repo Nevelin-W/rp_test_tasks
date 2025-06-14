@@ -1,4 +1,4 @@
-name: Deploy WordPress with LocalTunnel (No Signup)
+name: Deploy WordPress with LocalTunnel (Nginx + No Signup)
 
 on:
   workflow_dispatch:
@@ -22,34 +22,43 @@ jobs:
       with:
         node-version: '18'
     
-    - name: Install localtunnel
+    - name: Install dependencies
       run: |
         npm install -g localtunnel
         npm install -g wait-port
     
-    - name: Install Docker Compose
-      run: |
-        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        docker-compose --version
-    
-    - name: Build and start WordPress
+    - name: Build and start WordPress stack
       run: |
         cd docker
         docker-compose up -d --build
         
-        # Wait for services to be healthy
+        # Wait for all services to be healthy
         echo "Waiting for services to start..."
-        timeout 120 bash -c 'until docker-compose ps | grep "healthy"; do sleep 5; echo "Still waiting..."; done' || echo "Health check timeout"
+        for i in {1..24}; do
+          if docker-compose ps | grep -q "healthy"; then
+            echo "Services are starting..."
+            sleep 5
+          else
+            echo "Waiting for health checks... ($i/24)"
+            sleep 5
+          fi
+        done
         
-        # Test Apache configuration
-        docker-compose exec -T wordpress apache2ctl configtest
+        # Test nginx health check
+        echo "Testing nginx health..."
+        curl -f http://localhost:8080/nginx-health || echo "Nginx health check failed"
         
-        # Verify local access
-        curl -f http://localhost:8080 || echo "Local access test failed"
+        # Test WordPress through nginx
+        echo "Testing WordPress through nginx..."
+        curl -f http://localhost:8080 || echo "WordPress access test failed"
         
-        # Show container status
+        # Show service status
+        echo "=== Service Status ==="
         docker-compose ps
+        
+        # Show recent logs
+        echo "=== Recent Logs ==="
+        docker-compose logs --tail=10
     
     - name: Create public tunnel with LocalTunnel
       run: |
@@ -78,18 +87,16 @@ jobs:
         echo "⚠️  IMPORTANT: When you visit the URL, you'll be asked for a tunnel password."
         echo "    Enter this IP address: $PUBLIC_IP"
         echo ""
-        echo "Local URL: http://localhost:8080"
+        echo "🔧 Stack Information:"
+        echo "   - Nginx reverse proxy on port 8080"
+        echo "   - WordPress backend with Apache"
+        echo "   - MySQL database"
         echo ""
-        echo "Database Access:"
-        echo "Host: localhost"
-        echo "Port: 3306"
-        echo "Database: wordpress"
-        echo "Username: wpuser"
-        echo "Password: wppass"
+        echo "🏥 Health Check: $TUNNEL_URL/nginx-health"
         echo ""
         echo "Site will remain active for ${{ github.event.inputs.duration }} minutes"
         
-        # Test the tunnel (localtunnel shows a warning page, so we expect a redirect)
+        # Test the tunnel
         echo "Testing tunnel accessibility..."
         curl -I "$TUNNEL_URL" || echo "Tunnel test completed"
         
@@ -103,7 +110,7 @@ jobs:
         
         # Show logs in background
         cd docker
-        docker-compose logs -f &
+        docker-compose logs -f --tail=20 &
         LOGS_PID=$!
         
         # Wait for specified duration
@@ -121,8 +128,10 @@ jobs:
         cd docker
         echo "=== Final Container Status ==="
         docker-compose ps
-        echo "=== Recent Docker Logs ==="
-        docker-compose logs --tail=20
+        echo "=== Recent Nginx Logs ==="
+        docker-compose logs nginx --tail=10
+        echo "=== Recent WordPress Logs ==="
+        docker-compose logs wordpress --tail=10
         echo "=== Tunnel Logs ==="
         cat tunnel.log || echo "No tunnel logs found"
     

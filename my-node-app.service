@@ -1,0 +1,17 @@
+[Unit]
+Description=My Node.js Application
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /path/to/your/app.js
+Restart=always
+User=youruser
+Group=yourgroup
+Environment=NODE_ENV=production
+WorkingDirectory=/path/to/your
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=my-node-app
+
+[Install]
+WantedBy=multi-user.target
