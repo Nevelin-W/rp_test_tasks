@@ -15,3 +15,12 @@ file: .github/workflows/dummy-node.yml
 file: docker/docker-compose.yml
 github-action: Deploy WordPress with LocalTunnel (Nginx + No Signup)
 Wrote pipeline for deploying and running worpress mysql and nginx with docker compose public access is enabled via local tunnel
+
+SSL Termination via Cloudflare
+For production deployments, SSL termination should be handled by Cloudflare rather than LocalTunnel, providing better security, performance, and reliability.
+Implementation Approach
+1. Cloudflare Tunnel Setup:
+
+Replace LocalTunnel with Cloudflare Tunnel (cloudflared)
+Configure a custom domain managed by Cloudflare
+SSL/TLS certificates handled automatically by Cloudflare
