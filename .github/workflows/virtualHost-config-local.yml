@@ -1,0 +1,128 @@
+name: Deploy WordPress with LocalTunnel (No Signup)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'How long to keep the site running (in minutes)'
+        required: false
+        default: '30'
+        type: string
+
+jobs:
+  deploy-wordpress:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js for localtunnel
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install localtunnel
+      run: |
+        npm install -g localtunnel
+        npm install -g wait-port
+    
+    - name: Install Docker Compose
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        docker-compose --version
+    
+    - name: Build and start WordPress
+      run: |
+        cd docker
+        docker-compose up -d --build
+        
+        # Wait for services to be healthy
+        echo "Waiting for services to start..."
+        timeout 120 bash -c 'until docker-compose ps | grep "healthy"; do sleep 5; echo "Still waiting..."; done' || echo "Health check timeout"
+        
+        # Test Apache configuration
+        docker-compose exec -T wordpress apache2ctl configtest
+        
+        # Verify local access
+        curl -f http://localhost:8080 || echo "Local access test failed"
+        
+        # Show container status
+        docker-compose ps
+    
+    - name: Create public tunnel with LocalTunnel
+      run: |
+        # Generate a unique subdomain
+        SUBDOMAIN="wp-$(date +%s)-$(shuf -i 1000-9999 -n 1)"
+        
+        echo "Starting LocalTunnel with subdomain: $SUBDOMAIN"
+        
+        # Start localtunnel in background
+        lt --port 8080 --subdomain $SUBDOMAIN > tunnel.log 2>&1 &
+        TUNNEL_PID=$!
+        
+        # Wait for tunnel to establish
+        sleep 15
+        
+        # Get the tunnel URL
+        TUNNEL_URL="https://${SUBDOMAIN}.loca.lt"
+        
+        echo "🚀 WordPress is now accessible at:"
+        echo "Public URL: $TUNNEL_URL"
+        echo "Local URL: http://localhost:8080"
+        echo ""
+        echo "Database Access:"
+        echo "Host: localhost"
+        echo "Port: 3306"
+        echo "Database: wordpress"
+        echo "Username: wpuser"
+        echo "Password: wppass"
+        echo ""
+        echo "Note: LocalTunnel may show a warning page on first visit - click 'Continue' to proceed"
+        echo "Site will remain active for ${{ github.event.inputs.duration }} minutes"
+        
+        # Test the tunnel (localtunnel shows a warning page, so we expect a redirect)
+        echo "Testing tunnel accessibility..."
+        curl -I "$TUNNEL_URL" || echo "Tunnel test completed"
+        
+        # Show tunnel logs
+        echo "=== Tunnel Logs ==="
+        cat tunnel.log || echo "No tunnel logs yet"
+        
+        # Keep everything running
+        echo "Keeping the site running for ${{ github.event.inputs.duration }} minutes..."
+        DURATION_SECONDS=$(((${{ github.event.inputs.duration }} * 60)))
+        
+        # Show logs in background
+        cd docker
+        docker-compose logs -f &
+        LOGS_PID=$!
+        
+        # Wait for specified duration
+        sleep $DURATION_SECONDS
+        
+        # Stop background processes
+        kill $LOGS_PID 2>/dev/null || true
+        kill $TUNNEL_PID 2>/dev/null || true
+        
+        echo "Time limit reached. Shutting down..."
+    
+    - name: Show final status
+      if: always()
+      run: |
+        cd docker
+        echo "=== Final Container Status ==="
+        docker-compose ps
+        echo "=== Recent Docker Logs ==="
+        docker-compose logs --tail=20
+        echo "=== Tunnel Logs ==="
+        cat tunnel.log || echo "No tunnel logs found"
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        cd docker
+        docker-compose down -v
+        docker system prune -f
+        pkill node || true
